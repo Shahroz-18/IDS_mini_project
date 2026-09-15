@@ -1,92 +1,281 @@
 /**
  * Study Path Page Component (A* Search).
  * Uses @xyflow/react (React Flow) to visualize the curriculum milestone state-space graph.
- * Highlights the optimal learning path generated via A* heuristic search algorithm.
- * Features:
- * - Current level & Target level dropdown selection
- * - Find Optimal Path button with loading states
- * - Interactive node-link graph canvas
- * - Path breakdown summary card with ordered topics and heuristic cost.
+ * Live-highlights the optimal learning path as the user changes their current level.
  */
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import {
   ReactFlow,
   Background,
-  Controls,
   MarkerType,
+  Position,
+  BaseEdge,
+  EdgeLabelRenderer,
+  getBezierPath,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {
   Route,
-  Sparkles,
-  ArrowRight,
-  CheckCircle2,
-  Clock,
-  BookOpen,
-  Award,
   Layers,
+  Zap,
 } from 'lucide-react';
-import api from '@/api/axios';
 import PageWrapper from '@/components/layout/PageWrapper';
 import SectionTitle from '@/components/shared/SectionTitle';
 import Card, { CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import Select from '@/components/ui/select';
 import Label from '@/components/ui/label';
-import Button from '@/components/ui/button';
 import Badge from '@/components/ui/badge';
 
+/* ------------------------------------------------------------------ */
+/* Backend-mirrored graph — MUST match STUDY_GRAPH in the Python file. */
+/* ------------------------------------------------------------------ */
+const STUDY_GRAPH = {
+  Fundamentals:        { Basic_Concepts: 2, Core_Theory: 3 },
+  Basic_Concepts:      { Practice_Problems: 3, Intermediate_Theory: 4 },
+  Core_Theory:         { Intermediate_Theory: 3, Practice_Problems: 4 },
+  Intermediate_Theory: { Advanced_Problems: 5, Mock_Tests: 4 },
+  Practice_Problems:   { Mock_Tests: 3, Advanced_Problems: 5 },
+  Mock_Tests:          { Final_Review: 3, Exam_Ready: 2 },
+  Advanced_Problems:   { Exam_Ready: 4 },
+  Final_Review:        { Exam_Ready: 1 },
+  Exam_Ready:          {},
+};
+
+const HEURISTIC = {
+  Fundamentals: 10,
+  Basic_Concepts: 8,
+  Core_Theory: 9,
+  Intermediate_Theory: 6,
+  Practice_Problems: 7,
+  Advanced_Problems: 4,
+  Mock_Tests: 3,
+  Final_Review: 2,
+  Exam_Ready: 0,
+};
+
 const LEVELS = [
-  { id: 'Beginner', label: 'Beginner (Foundations)' },
-  { id: 'Basic_Math', label: 'Basic Math & Logic' },
-  { id: 'Fundamentals', label: 'Core Fundamentals' },
-  { id: 'Core_Concepts', label: 'Applied Domain Concepts' },
-  { id: 'Intermediate', label: 'Intermediate Practice' },
-  { id: 'Advanced_Problems', label: 'Advanced Problem Solving' },
-  { id: 'Exam_Ready', label: 'Exam Ready (Target Benchmark)' },
-  { id: 'Mastery', label: 'Subject Mastery (Honors)' },
+  { id: 'Fundamentals',        label: 'Beginner — Fundamentals' },
+  { id: 'Basic_Concepts',      label: 'Basic Concepts' },
+  { id: 'Core_Theory',         label: 'Core Theory' },
+  { id: 'Intermediate_Theory', label: 'Intermediate Theory' },
+  { id: 'Practice_Problems',   label: 'Practice Problems' },
+  { id: 'Advanced_Problems',   label: 'Advanced Problems' },
+  { id: 'Mock_Tests',          label: 'Mock Tests' },
+  { id: 'Final_Review',        label: 'Final Review' },
 ];
+
+const GOAL_NODE = 'Exam_Ready';
+
+/* ------------------------------------------------------------------ */
+/* Custom edge with adjustable label position along the chord          */
+/* ------------------------------------------------------------------ */
+function ThemedEdge({
+  id,
+  sourceX, sourceY,
+  targetX, targetY,
+  sourcePosition, targetPosition,
+  style = {},
+  markerEnd,
+  label,
+  data = {},
+}) {
+  const curvature = data.curvature ?? 0.25;
+  const labelT = data.labelT ?? 0.5;
+
+  const [edgePath] = getBezierPath({
+    sourceX, sourceY, sourcePosition,
+    targetX, targetY, targetPosition,
+    curvature,
+  });
+
+  // Place the label at fraction labelT along the straight chord between endpoints
+  const lx = sourceX + (targetX - sourceX) * labelT;
+  const ly = sourceY + (targetY - sourceY) * labelT;
+
+  return (
+    <>
+      <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
+      {label && (
+        <EdgeLabelRenderer>
+          <div
+            className="nodrag nopan"
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${lx}px, ${ly}px)`,
+              background: '#020617',
+              border: '1px solid #334155',
+              borderRadius: 6,
+              padding: '3px 7px',
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#cbd5e1',
+              lineHeight: 1,
+              pointerEvents: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {label}
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+}
+
+const edgeTypes = { themed: ThemedEdge };
+
+/* ------------------------------------------------------------------ */
+/* Client-side A* — identical to backend astar_study_path logic       */
+/* ------------------------------------------------------------------ */
+function localAStar(startNode, goalNode = GOAL_NODE) {
+  if (!STUDY_GRAPH[startNode]) {
+    return { path: [], total_cost: 0, error: 'Unknown start node' };
+  }
+
+  const open = [{
+    node: startNode,
+    g: 0,
+    f: HEURISTIC[startNode] ?? 0,
+    path: [startNode],
+  }];
+  const visited = new Set();
+
+  while (open.length) {
+    open.sort((a, b) => a.f - b.f);
+    const { node, g, f, path } = open.shift();
+
+    if (node === goalNode) {
+      return { path, total_cost: g, f_cost: f };
+    }
+    if (visited.has(node)) continue;
+    visited.add(node);
+
+    const neighbors = STUDY_GRAPH[node] || {};
+    for (const [next, cost] of Object.entries(neighbors)) {
+      if (visited.has(next)) continue;
+      const ng = g + cost;
+      const nf = ng + (HEURISTIC[next] ?? 0);
+      open.push({ node: next, g: ng, f: nf, path: [...path, next] });
+    }
+  }
+
+  return { path: [], total_cost: 0, error: 'No path found' };
+}
+
+/* ------------------------------------------------------------------ */
+/* Graph geometry — wide columns, taller rows, prevent overlaps        */
+/* ------------------------------------------------------------------ */
+const NODE_BASE_STYLE = {
+  background: '#0f172a',
+  color: '#f8fafc',
+  border: '1px solid #334155',
+  borderRadius: '12px',
+  padding: '12px 18px',
+  fontSize: 12,
+};
 
 const INITIAL_NODES = [
-  { id: 'Beginner', position: { x: 50, y: 150 }, data: { label: '🌱 Beginner' }, style: { background: '#0f172a', color: '#f8fafc', border: '1px solid #334155', borderRadius: '12px', padding: '12px 18px', fontWeight: 'bold' } },
-  { id: 'Basic_Math', position: { x: 260, y: 50 }, data: { label: '📐 Basic Math' }, style: { background: '#0f172a', color: '#f8fafc', border: '1px solid #334155', borderRadius: '12px', padding: '12px 18px' } },
-  { id: 'Fundamentals', position: { x: 260, y: 250 }, data: { label: '📖 Fundamentals' }, style: { background: '#0f172a', color: '#f8fafc', border: '1px solid #334155', borderRadius: '12px', padding: '12px 18px' } },
-  { id: 'Core_Concepts', position: { x: 480, y: 80 }, data: { label: '💡 Core Concepts' }, style: { background: '#0f172a', color: '#f8fafc', border: '1px solid #334155', borderRadius: '12px', padding: '12px 18px' } },
-  { id: 'Intermediate', position: { x: 480, y: 230 }, data: { label: '⚙️ Intermediate' }, style: { background: '#0f172a', color: '#f8fafc', border: '1px solid #334155', borderRadius: '12px', padding: '12px 18px' } },
-  { id: 'Advanced_Problems', position: { x: 700, y: 150 }, data: { label: '🚀 Advanced Problems' }, style: { background: '#0f172a', color: '#f8fafc', border: '1px solid #334155', borderRadius: '12px', padding: '12px 18px' } },
-  { id: 'Exam_Ready', position: { x: 920, y: 80 }, data: { label: '🎯 Exam Ready' }, style: { background: '#0f172a', color: '#f8fafc', border: '1px solid #334155', borderRadius: '12px', padding: '12px 18px', fontWeight: 'bold' } },
-  { id: 'Mastery', position: { x: 920, y: 240 }, data: { label: '👑 Mastery' }, style: { background: '#0f172a', color: '#f8fafc', border: '1px solid #334155', borderRadius: '12px', padding: '12px 18px' } },
+  { id: 'Fundamentals',        position: { x: 40,   y: 240 }, data: { label: 'Fundamentals' },        style: { ...NODE_BASE_STYLE, fontWeight: 'bold' } },
+  { id: 'Basic_Concepts',      position: { x: 360,  y: 20  }, data: { label: 'Basic Concepts' },      style: { ...NODE_BASE_STYLE } },
+  { id: 'Core_Theory',         position: { x: 360,  y: 480 }, data: { label: 'Core Theory' },         style: { ...NODE_BASE_STYLE } },
+  { id: 'Intermediate_Theory', position: { x: 720,  y: 20  }, data: { label: 'Intermediate Theory' }, style: { ...NODE_BASE_STYLE } },
+  { id: 'Practice_Problems',   position: { x: 720,  y: 480 }, data: { label: 'Practice Problems' },   style: { ...NODE_BASE_STYLE } },
+  { id: 'Advanced_Problems',   position: { x: 1080, y: 20  }, data: { label: 'Advanced Problems' },   style: { ...NODE_BASE_STYLE } },
+  { id: 'Mock_Tests',          position: { x: 1080, y: 480 }, data: { label: 'Mock Tests' },          style: { ...NODE_BASE_STYLE } },
+  { id: 'Final_Review',        position: { x: 1420, y: 20  }, data: { label: 'Final Review' },        style: { ...NODE_BASE_STYLE } },
+  { id: 'Exam_Ready',          position: { x: 1420, y: 480 }, data: { label: 'Exam Ready' },          style: { ...NODE_BASE_STYLE, fontWeight: 'bold' } },
 ];
 
+/* Edges with explicit curvature + labelT to prevent any label collision. */
 const INITIAL_EDGES = [
-  { id: 'e1', source: 'Beginner', target: 'Basic_Math', label: 'Cost: 3', animated: false, style: { stroke: '#475569', strokeWidth: 1.5 } },
-  { id: 'e2', source: 'Beginner', target: 'Fundamentals', label: 'Cost: 4', animated: false, style: { stroke: '#475569', strokeWidth: 1.5 } },
-  { id: 'e3', source: 'Basic_Math', target: 'Core_Concepts', label: 'Cost: 4', animated: false, style: { stroke: '#475569', strokeWidth: 1.5 } },
-  { id: 'e4', source: 'Fundamentals', target: 'Intermediate', label: 'Cost: 3', animated: false, style: { stroke: '#475569', strokeWidth: 1.5 } },
-  { id: 'e5', source: 'Core_Concepts', target: 'Advanced_Problems', label: 'Cost: 5', animated: false, style: { stroke: '#475569', strokeWidth: 1.5 } },
-  { id: 'e6', source: 'Intermediate', target: 'Advanced_Problems', label: 'Cost: 4', animated: false, style: { stroke: '#475569', strokeWidth: 1.5 } },
-  { id: 'e7', source: 'Advanced_Problems', target: 'Exam_Ready', label: 'Cost: 4', animated: false, style: { stroke: '#475569', strokeWidth: 1.5 } },
-  { id: 'e8', source: 'Advanced_Problems', target: 'Mastery', label: 'Cost: 7', animated: false, style: { stroke: '#475569', strokeWidth: 1.5 } },
-  { id: 'e9', source: 'Core_Concepts', target: 'Intermediate', label: 'Cost: 2', animated: false, style: { stroke: '#475569', strokeWidth: 1.5 } },
-];
+  // ── Left side ──
+  { id: 'e-f-bc', source: 'Fundamentals', target: 'Basic_Concepts', label: 'Cost: 2',
+    sourcePosition: Position.Top, targetPosition: Position.Bottom,
+    data: { curvature: 0.2, labelT: 0.5 } },
+  { id: 'e-f-ct', source: 'Fundamentals', target: 'Core_Theory', label: 'Cost: 3',
+    sourcePosition: Position.Bottom, targetPosition: Position.Top,
+    data: { curvature: 0.2, labelT: 0.5 } },
 
-const DEFAULT_PATH = ['Beginner', 'Basic_Math', 'Core_Concepts', 'Advanced_Problems', 'Exam_Ready'];
+  // ── Crossing pair #1 ──
+  { id: 'e-bc-pp', source: 'Basic_Concepts', target: 'Practice_Problems', label: 'Cost: 3',
+    sourcePosition: Position.Bottom, targetPosition: Position.Top,
+    data: { curvature: 0.15, labelT: 0.28 } },
+  { id: 'e-ct-it', source: 'Core_Theory', target: 'Intermediate_Theory', label: 'Cost: 3',
+    sourcePosition: Position.Top, targetPosition: Position.Bottom,
+    data: { curvature: 0.15, labelT: 0.72 } },
 
+  // ── Top-row arcs ──
+  { id: 'e-bc-it', source: 'Basic_Concepts', target: 'Intermediate_Theory', label: 'Cost: 4',
+    sourcePosition: Position.Top, targetPosition: Position.Top,
+    data: { curvature: 0.5, labelT: 0.5 } },
+  { id: 'e-it-ap', source: 'Intermediate_Theory', target: 'Advanced_Problems', label: 'Cost: 5',
+    sourcePosition: Position.Top, targetPosition: Position.Top,
+    data: { curvature: 0.5, labelT: 0.5 } },
+
+  // ── Bottom-row arcs ──
+  { id: 'e-ct-pp', source: 'Core_Theory', target: 'Practice_Problems', label: 'Cost: 4',
+    sourcePosition: Position.Bottom, targetPosition: Position.Bottom,
+    data: { curvature: 0.5, labelT: 0.5 } },
+  { id: 'e-pp-mt', source: 'Practice_Problems', target: 'Mock_Tests', label: 'Cost: 3',
+    sourcePosition: Position.Bottom, targetPosition: Position.Bottom,
+    data: { curvature: 0.5, labelT: 0.5 } },
+
+  // ── Crossing pair #2 ──
+  { id: 'e-it-mt', source: 'Intermediate_Theory', target: 'Mock_Tests', label: 'Cost: 4',
+    sourcePosition: Position.Bottom, targetPosition: Position.Top,
+    data: { curvature: 0.1, labelT: 0.3 } },
+  { id: 'e-pp-ap', source: 'Practice_Problems', target: 'Advanced_Problems', label: 'Cost: 5',
+    sourcePosition: Position.Top, targetPosition: Position.Bottom,
+    data: { curvature: 0.1, labelT: 0.7 } },
+
+  // ── Crossing pair #3 ──
+  { id: 'e-mt-fr', source: 'Mock_Tests', target: 'Final_Review', label: 'Cost: 3',
+    sourcePosition: Position.Top, targetPosition: Position.Bottom,
+    data: { curvature: 0.15, labelT: 0.28 } },
+  { id: 'e-ap-er', source: 'Advanced_Problems', target: 'Exam_Ready', label: 'Cost: 4',
+    sourcePosition: Position.Bottom, targetPosition: Position.Top,
+    data: { curvature: 0.15, labelT: 0.72 } },
+
+  // ── Right side (no crossing) ──
+  { id: 'e-mt-er', source: 'Mock_Tests', target: 'Exam_Ready', label: 'Cost: 2',
+    sourcePosition: Position.Bottom, targetPosition: Position.Bottom,
+    data: { curvature: 0.4, labelT: 0.5 } },
+  { id: 'e-fr-er', source: 'Final_Review', target: 'Exam_Ready', label: 'Cost: 1',
+    sourcePosition: Position.Bottom, targetPosition: Position.Top,
+    data: { curvature: 0.2, labelT: 0.5 } },
+].map((edge) => ({
+  ...edge,
+  type: 'themed',
+  animated: false,
+  style: { stroke: '#475569', strokeWidth: 1.5 },
+}));
+
+const DEFAULT_RESULT = localAStar('Fundamentals');
+
+/* ------------------------------------------------------------------ */
+/* Component                                                           */
+/* ------------------------------------------------------------------ */
 export default function StudyPath() {
-  const [currentLevel, setCurrentLevel] = useState('Beginner');
-  const [targetLevel, setTargetLevel] = useState('Exam_Ready');
-  const [path, setPath] = useState(DEFAULT_PATH);
-  const [totalCost, setTotalCost] = useState(16);
-  const [loading, setLoading] = useState(false);
+  const [currentLevel, setCurrentLevel] = useState('Fundamentals');
+  const [path, setPath] = useState(DEFAULT_RESULT.path);
+  const [totalCost, setTotalCost] = useState(DEFAULT_RESULT.total_cost);
   const [nodes, setNodes] = useState(INITIAL_NODES);
   const [edges, setEdges] = useState(INITIAL_EDGES);
+
+  /* LIVE PATHFINDING */
+  useEffect(() => {
+    const result = localAStar(currentLevel, GOAL_NODE);
+    if (result.path.length) {
+      setPath(result.path);
+      setTotalCost(result.total_cost);
+    }
+  }, [currentLevel]);
 
   useEffect(() => {
     updateGraphHighlight(path);
   }, [path]);
 
   const updateGraphHighlight = (activePath) => {
-    // Highlight nodes on path
     const updatedNodes = INITIAL_NODES.map((node) => {
       const isOnPath = activePath.includes(node.id);
       const isStart = activePath[0] === node.id;
@@ -123,7 +312,6 @@ export default function StudyPath() {
       };
     });
 
-    // Highlight edges between sequential nodes on path
     const updatedEdges = INITIAL_EDGES.map((edge) => {
       let isPathEdge = false;
       for (let i = 0; i < activePath.length - 1; i++) {
@@ -151,50 +339,7 @@ export default function StudyPath() {
     setEdges(updatedEdges);
   };
 
-  const handleFindPath = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-
-    const payload = {
-      current_level: currentLevel,
-      target_level: targetLevel,
-      start_level: currentLevel,
-    };
-
-    try {
-      const res = await api.post('/api/astar/path', payload);
-      if (res.data && res.data.path) {
-        setPath(res.data.path);
-        setTotalCost(res.data.total_cost || res.data.cost || 16);
-      } else {
-        computeLocalPath(currentLevel, targetLevel);
-      }
-    } catch (_) {
-      computeLocalPath(currentLevel, targetLevel);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const computeLocalPath = (start, target) => {
-    // Quick heuristic graph lookup
-    const defaultPaths = {
-      'Beginner-Exam_Ready': { p: ['Beginner', 'Basic_Math', 'Core_Concepts', 'Advanced_Problems', 'Exam_Ready'], c: 16 },
-      'Beginner-Mastery': { p: ['Beginner', 'Fundamentals', 'Intermediate', 'Advanced_Problems', 'Mastery'], c: 18 },
-      'Basic_Math-Exam_Ready': { p: ['Basic_Math', 'Core_Concepts', 'Advanced_Problems', 'Exam_Ready'], c: 13 },
-      'Fundamentals-Mastery': { p: ['Fundamentals', 'Intermediate', 'Advanced_Problems', 'Mastery'], c: 14 },
-    };
-
-    const key = `${start}-${target}`;
-    if (defaultPaths[key]) {
-      setPath(defaultPaths[key].p);
-      setTotalCost(defaultPaths[key].c);
-    } else {
-      const p = [start, 'Intermediate', target];
-      setPath(p);
-      setTotalCost(12);
-    }
-  };
+  const getEdgeCost = (from, to) => STUDY_GRAPH[from]?.[to];
 
   return (
     <PageWrapper>
@@ -205,21 +350,71 @@ export default function StudyPath() {
         badgeText="Heuristic AI Search"
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Config Form: 4 cols */}
-        <div className="lg:col-span-4 space-y-6">
+      <div className="space-y-6">
+        <Card className="flex flex-col p-0 overflow-hidden border-slate-800 bg-slate-950">
+          <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
+            <div className="flex items-center gap-2">
+              <Layers size={18} className="text-indigo-400" />
+              <h3 className="text-sm font-semibold text-white">
+                Curriculum State Space Network
+              </h3>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-slate-400">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Start
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> Path
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-pink-500"></span> Goal
+              </span>
+            </div>
+          </div>
+
+          <div className="h-[560px] w-full bg-slate-950 relative">
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              edgeTypes={edgeTypes}
+              fitView
+              fitViewOptions={{ padding: 0.1, maxZoom: 1 }}
+              minZoom={0.2}
+              maxZoom={1.5}
+              nodesDraggable={false}
+              nodesConnectable={false}
+              elementsSelectable={false}
+              panOnDrag={false}
+              panOnScroll={false}
+              zoomOnScroll={false}
+              zoomOnPinch={false}
+              zoomOnDoubleClick={false}
+              preventScrolling={false}
+              proOptions={{ hideAttribution: true }}
+            >
+              <Background color="#1e293b" gap={20} size={1} />
+            </ReactFlow>
+          </div>
+        </Card>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
-              <div className="flex items-center gap-2 text-indigo-400">
-                <Route size={18} />
-                <CardTitle className="text-base">Configure Learning Milestones</CardTitle>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-indigo-400">
+                  <Route size={18} />
+                  <CardTitle className="text-base">Configure Learning Milestones</CardTitle>
+                </div>
+                <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                  <Zap size={11} className="fill-emerald-400" /> Live
+                </span>
               </div>
               <p className="text-xs text-slate-400">
-                Select your starting proficiency and target academic milestone
+                The optimal path updates automatically as you change your starting level
               </p>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleFindPath} className="space-y-4">
+              <div className="space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="current-level">Current Academic Level</Label>
                   <Select
@@ -237,33 +432,14 @@ export default function StudyPath() {
 
                 <div className="space-y-1.5">
                   <Label htmlFor="target-level">Target Academic Level</Label>
-                  <Select
-                    id="target-level"
-                    value={targetLevel}
-                    onChange={(e) => setTargetLevel(e.target.value)}
-                  >
-                    {LEVELS.map((lvl) => (
-                      <option key={lvl.id} value={lvl.id}>
-                        {lvl.label}
-                      </option>
-                    ))}
+                  <Select id="target-level" value={GOAL_NODE} disabled>
+                    <option value={GOAL_NODE}>Exam Ready (Target Benchmark)</option>
                   </Select>
                 </div>
-
-                <Button
-                  type="submit"
-                  disabled={loading}
-                  size="lg"
-                  className="w-full gap-2 font-semibold shadow-md shadow-indigo-600/30"
-                >
-                  <Sparkles size={18} />
-                  <span>{loading ? 'Finding Optimal Path...' : 'Find Optimal Path (A*)'}</span>
-                </Button>
-              </form>
+              </div>
             </CardContent>
           </Card>
 
-          {/* Path Summary Card */}
           <Card className="border-indigo-500/30 bg-slate-900">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -276,22 +452,48 @@ export default function StudyPath() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                {path.map((nodeId, idx) => (
-                  <div
-                    key={nodeId}
-                    className="flex items-center gap-2.5 p-2.5 rounded-lg bg-slate-950/70 border border-slate-800 text-xs text-slate-200"
-                  >
-                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600/30 text-indigo-400 font-mono text-[11px] font-bold shrink-0">
-                      {idx + 1}
-                    </span>
-                    <span className="font-semibold">{nodeId.replace('_', ' ')}</span>
-                    {idx === path.length - 1 && (
-                      <Badge variant="default" className="ml-auto text-[10px]">
-                        Goal State
-                      </Badge>
-                    )}
-                  </div>
-                ))}
+                {path.map((nodeId, idx) => {
+                  const prev = idx > 0 ? path[idx - 1] : null;
+                  const stepCost = prev ? getEdgeCost(prev, nodeId) : null;
+                  const isStart = idx === 0;
+                  const isGoal = idx === path.length - 1;
+
+                  return (
+                    <div
+                      key={`${nodeId}-${idx}`}
+                      className="flex items-center gap-2.5 p-2.5 rounded-lg bg-slate-950/70 border border-slate-800 text-xs text-slate-200"
+                    >
+                      <span
+                        className={`flex items-center justify-center w-5 h-5 rounded-full font-mono text-[11px] font-bold shrink-0 ${
+                          isStart
+                            ? 'bg-emerald-600/30 text-emerald-400'
+                            : isGoal
+                            ? 'bg-pink-600/30 text-pink-400'
+                            : 'bg-indigo-600/30 text-indigo-400'
+                        }`}
+                      >
+                        {idx + 1}
+                      </span>
+                      <span className="font-semibold">{nodeId.replace(/_/g, ' ')}</span>
+
+                      {isStart && (
+                        <span className="ml-auto text-[10px] font-semibold text-emerald-400">
+                          START
+                        </span>
+                      )}
+                      {stepCost != null && !isGoal && (
+                        <span className="ml-auto font-mono text-[10px] text-slate-400">
+                          +{stepCost}
+                        </span>
+                      )}
+                      {isGoal && (
+                        <Badge variant="default" className="ml-auto text-[10px]">
+                          Goal State
+                        </Badge>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-200 leading-relaxed">
@@ -299,45 +501,6 @@ export default function StudyPath() {
                 f(n) = g(n) + h(n), where g(n) is cumulative topic workload cost and h(n) is admissible distance to target mastery.
               </div>
             </CardContent>
-          </Card>
-        </div>
-
-        {/* Right Graph Canvas: 8 cols */}
-        <div className="lg:col-span-8">
-          <Card className="h-full flex flex-col p-0 overflow-hidden border-slate-800 bg-slate-950">
-            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
-              <div className="flex items-center gap-2">
-                <Layers size={18} className="text-indigo-400" />
-                <h3 className="text-sm font-semibold text-white">
-                  Curriculum State Space Network (@xyflow/react)
-                </h3>
-              </div>
-              <div className="flex items-center gap-3 text-xs text-slate-400">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Start
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> Path
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-pink-500"></span> Goal
-                </span>
-              </div>
-            </div>
-
-            {/* React Flow Graph */}
-            <div className="h-[520px] w-full bg-slate-950 relative">
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                fitView
-                fitViewOptions={{ padding: 0.2 }}
-                proOptions={{ hideAttribution: true }}
-              >
-                <Background color="#1e293b" gap={20} size={1} />
-                <Controls className="bg-slate-900 border-slate-700 text-white fill-white" />
-              </ReactFlow>
-            </div>
           </Card>
         </div>
       </div>

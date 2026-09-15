@@ -43,9 +43,10 @@ const itemVariants = {
 };
 
 const TEAM_MEMBERS = [
-  { name: 'Sarvadnya Patil', roll: 'Roll No: 18 / IT5PC_LR2', role: 'Lead Developer & ML Engineer', focus: 'Data Ingestion, Regression, Classification & UI Integration' },
-  { name: 'Academic Contributor', roll: 'Roll No: 24 / IT5PC_LR2', role: 'Data Analytics & Statistics', focus: 'Hypothesis Testing, Covariance Analysis & EDA' },
-  { name: 'Research Contributor', roll: 'Roll No: 31 / IT5PC_LR2', role: 'Algorithms & Clustering', focus: 'K-Means, PCA Decomposition & A* Search Graph' },
+  { name: 'Shahroz Ahmed',   roll: 'Roll No: 56   ', role: 'Team Lead & Project Architect',     focus: 'Project Coordination, System Design, Integration & Deliverables' },
+  { name: 'Tanish Sawant',   roll: 'Roll No: 51   ', role: 'Lead Developer & ML',      focus: 'Data Ingestion, Regression, Classification & UI Integration' },
+  { name: 'Himanshu Mhatre', roll: 'Roll No: 57   ', role: 'Algorithms & Clustering',           focus: 'K-Means, PCA Decomposition & A* Search Graph' },
+  { name: 'Abhijeet Pathak', roll: 'Roll No: 59   ', role: 'Frontend & Visualization', focus: 'React Components, Charts, State-Space Graph & Dashboard UX' },
 ];
 
 const TECH_STACK = [
@@ -67,7 +68,7 @@ export default function About() {
     <PageWrapper>
       <SectionTitle
         title="About the Mini-Project & Laboratory Suite"
-        subtitle="Comprehensive synthesis of Experiments 1–9 for Intelligent Data Systems-I (IT5PC_LR2)"
+        subtitle="Comprehensive synthesis of Experiments 1–9 for Intelligent Data Systems-I ( )"
         badgeText="Documentation"
       />
 
@@ -88,10 +89,10 @@ export default function About() {
               Course Information & Academic Context
             </h3>
           </div>
-          <p className="text-sm text-slate-300 leading-relaxed max-w-4xl">
-            This application represents an end-to-end college mini-project consolidating all experimental modules from the 
-            <strong> Intelligent Data Systems-I Laboratory (IT5PC_LR2)</strong>. Rather than running disconnected Python scripts, 
-            the platform unifies data ingestion, missing value imputation, multi-attribute EDA, hypothesis testing, supervised regression, 
+          <p className="text-sm text-slate-300 leading-relaxed max-w-5xl">
+            This application represents an end-to-end college mini-project consolidating all experimental modules from the{' '}
+            <strong className="whitespace-nowrap">Intelligent Data Systems Laboratory</strong>. Rather than running disconnected Python scripts,
+            the platform unifies data ingestion, missing value imputation, multi-attribute EDA, hypothesis testing, supervised regression,
             binary risk classification, K-Means clustering, PCA dimensionality reduction, and A* state-space study path planning into a unified, responsive dashboard.
           </p>
         </motion.div>
@@ -102,7 +103,7 @@ export default function About() {
             <Users size={20} className="text-indigo-400" />
             <h3>Project Team & Contributors</h3>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {TEAM_MEMBERS.map((member, idx) => (
               <motion.div key={idx} variants={itemVariants}>
                 <Card className="h-full border-slate-800 bg-slate-900/90 p-5 flex flex-col justify-between">
@@ -125,14 +126,14 @@ export default function About() {
           </div>
         </div>
 
-        {/* Strict Tech Stack Grid */}
+        {/*Tech Stack Grid */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-white font-bold text-lg">
               <Zap size={20} className="text-amber-400" />
-              <h3>Strict Production Tech Stack</h3>
+              <h3>Production Tech Stack</h3>
             </div>
-            <Badge variant="default">Zero Deviation</Badge>
+            
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

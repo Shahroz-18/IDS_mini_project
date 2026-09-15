@@ -49,13 +49,18 @@ export default function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <Router>
+    <Router
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <div className="min-h-screen bg-background text-foreground flex antialiased">
         {/* Sidebar */}
         <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-w-0 md:pl-[260px]">
+        <div className="flex-1 flex flex-col min-w-0 md:pl-16 md:peer-hover:pl-64 transition-all duration-300 ease-out">
           {/* Topbar */}
           <Topbar onToggleMobile={() => setMobileOpen((prev) => !prev)} />
 

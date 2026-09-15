@@ -48,6 +48,30 @@ def dataset_info():
     info['sample'] = df.head(10).to_dict(orient='records')
     return jsonify(info)
 
+@app.route('/api/dataset/summary', methods=['GET'])
+def dataset_summary():
+    df = load_data()
+    numeric_columns = df.select_dtypes(include='number').columns.tolist()
+    categorical_columns = [
+        column for column in df.columns if column not in numeric_columns
+    ]
+    return jsonify({
+        'total_records': int(df.shape[0]),
+        'total_features': int(df.shape[1]),
+        'numerical_cols': numeric_columns,
+        'categorical_cols': categorical_columns,
+        'missing_values': {
+            column: int(count)
+            for column, count in df.isnull().sum().items()
+            if count > 0
+        },
+    })
+
+@app.route('/api/dataset/preview', methods=['GET'])
+def dataset_preview():
+    df = load_data()
+    return jsonify(df.head(10).where(df.notna(), None).to_dict(orient='records'))
+
 @app.route('/api/preprocessing/report', methods=['GET'])
 def preprocessing_report():
     try:
@@ -58,6 +82,7 @@ def preprocessing_report():
 
 # Experiment 3: EDA data (computed on frontend from sample)
 @app.route('/api/eda/data', methods=['GET'])
+@app.route('/api/eda/charts', methods=['GET'])
 def eda_data():
     df = load_data()
     # Return data for charts
@@ -73,6 +98,7 @@ def eda_data():
 
 # Experiment 5: Statistics
 @app.route('/api/statistics/descriptive', methods=['GET'])
+@app.route('/api/statistics/summary', methods=['GET'])
 def descriptive_stats():
     df = load_reg_data()
     stats = compute_descriptive_stats(df)
@@ -90,7 +116,7 @@ def correlation():
     corr = compute_correlation_matrix(df)
     return jsonify(corr)
 
-@app.route('/api/statistics/ttest', methods=['GET'])
+@app.route('/api/statistics/ttest', methods=['GET', 'POST'])
 def ttest():
     df = load_reg_data()
     result = perform_ttest(df)
@@ -134,6 +160,7 @@ def classification_predict():
 
 # Experiment 8: Clustering
 @app.route('/api/clustering/train', methods=['GET'])
+@app.route('/api/clustering/results', methods=['GET'])
 def clustering_train():
     try:
         result = get_or_train_model('clustering', train_clustering_model)
@@ -143,6 +170,7 @@ def clustering_train():
 
 # Experiment 9: PCA
 @app.route('/api/pca/analyze', methods=['GET'])
+@app.route('/api/pca/results', methods=['GET'])
 def pca_analyze():
     try:
         result = get_or_train_model('pca', perform_pca)

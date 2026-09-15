@@ -52,6 +52,12 @@ const containerVariants = {
   },
 };
 
+/* ------------------------------------------------------------------ */
+/* Shared chart panel background — matches the EDA plot area           */
+/* ------------------------------------------------------------------ */
+const CHART_PANEL_CLASS =
+  'w-full rounded-lg border border-slate-800/60 bg-slate-900/40 p-2';
+
 const DEFAULT_VARIANCE = [
   { pc: 'PC1', variance: 44.2, cumulative: 44.2 },
   { pc: 'PC2', variance: 22.8, cumulative: 67.0 },
@@ -158,7 +164,7 @@ export default function PCA() {
                 <Badge variant="default">PC1 + PC2 = 67.0%</Badge>
               </CardHeader>
               <CardContent>
-                <div className="w-full h-[300px]">
+                <div className={`${CHART_PANEL_CLASS} h-[300px]`}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       data={varianceData}
@@ -168,6 +174,7 @@ export default function PCA() {
                       <XAxis dataKey="pc" stroke="#64748b" fontSize={12} tickLine={false} />
                       <YAxis stroke="#64748b" fontSize={12} tickLine={false} unit="%" />
                       <Tooltip
+                        cursor={{ fill: 'rgba(99, 102, 241, 0.08)' }}
                         content={({ active, payload, label }) => {
                           if (active && payload && payload.length) {
                             return (
@@ -209,7 +216,7 @@ export default function PCA() {
                 <Badge variant="secondary">Threshold ≥ 85%</Badge>
               </CardHeader>
               <CardContent>
-                <div className="w-full h-[300px]">
+                <div className={`${CHART_PANEL_CLASS} h-[300px]`}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                       data={varianceData}
@@ -272,11 +279,13 @@ export default function PCA() {
               </div>
             </CardHeader>
             <CardContent>
-              <PCAScatter
-                passData={pcaScatter.pass}
-                failData={pcaScatter.fail}
-                height={350}
-              />
+              <div className={`${CHART_PANEL_CLASS} p-3`}>
+                <PCAScatter
+                  passData={pcaScatter.pass}
+                  failData={pcaScatter.fail}
+                  height={350}
+                />
+              </div>
               <div className="p-3 rounded-lg bg-slate-950/70 border border-slate-800 text-xs text-slate-300 mt-3">
                 <strong className="text-indigo-400">Orthogonal Separation: </strong>
                 Students with passing grades clearly cluster along positive values of PC1 (driven by hours studied and previous grades), confirming PC1 as an effective linear separator for student success.

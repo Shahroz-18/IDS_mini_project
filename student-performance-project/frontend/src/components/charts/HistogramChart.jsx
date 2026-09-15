@@ -48,6 +48,7 @@ export default function HistogramChart({
               dx={-5}
             />
             <Tooltip
+              cursor={{ fill: 'rgba(30, 41, 59, 0.5)' }}
               content={({ active, payload, label }) => {
                 if (active && payload && payload.length) {
                   return (

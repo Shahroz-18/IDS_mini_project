@@ -8,7 +8,7 @@
  * - Actual vs. Predicted scatter plot with ideal 45-degree reference line
  * - POST /api/regression/predict integration.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp,
@@ -20,7 +20,8 @@ import {
   Clock,
   UserCheck,
   History,
-  UserX,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import api from '@/api/axios';
 import PageWrapper from '@/components/layout/PageWrapper';
@@ -32,6 +33,66 @@ import Input from '@/components/ui/input';
 import Label from '@/components/ui/label';
 import Button from '@/components/ui/button';
 import Badge from '@/components/ui/badge';
+
+/* ------------------------------------------------------------------ */
+/* Custom Select – fully themed dropdown to match the rest of the UI  */
+/* ------------------------------------------------------------------ */
+function Select({ id, name, value, onChange, options }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const onClick = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
+
+  const current = options.find((o) => String(o.value) === String(value));
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        id={id}
+        onClick={() => setOpen((v) => !v)}
+        className="flex h-10 w-full items-center justify-between rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+      >
+        <span>{current?.label ?? 'Select…'}</span>
+        <ChevronDown
+          size={16}
+          className={`text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border border-slate-700 bg-slate-950/95 backdrop-blur-sm shadow-xl shadow-black/40">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => {
+                onChange({ target: { name, value: opt.value } });
+                setOpen(false);
+              }}
+              className={`block w-full px-3 py-2 text-left text-sm transition-colors ${
+                String(opt.value) === String(value)
+                  ? 'bg-indigo-500/20 text-indigo-200'
+                  : 'text-slate-200 hover:bg-slate-800/80 hover:text-white'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* hidden input keeps form semantics / required validation */}
+      <input type="hidden" name={name} value={value} required />
+    </div>
+  );
+}
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -57,10 +118,15 @@ const DEFAULT_ACTUAL_VS_PRED = Array.from({ length: 90 }, (_, i) => {
 
 export default function Regression() {
   const [formData, setFormData] = useState({
-    studytime: 22,
-    attendance: 85,
-    prev_score: 75,
-    absences: 4,
+    Hours_Studied: 22,
+    Attendance: 85,
+    Sleep_Hours: 7,
+    Previous_Scores: 75,
+    Tutoring_Sessions: 1,
+    Physical_Activity: 3,
+    Motivation_Level: 1,
+    Parental_Involvement: 1,
+    Access_to_Resources: 1,
   });
 
   const [predictedScore, setPredictedScore] = useState(74.5);
@@ -90,11 +156,38 @@ export default function Regression() {
     }
   };
 
+  const normalizeNumericValue = (value, fallback = 0) => {
+    if (value === '' || value === null || value === undefined) return fallback;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: Number(value),
+      [name]: value === '' ? '' : Number(value),
+    }));
+  };
+
+  const handleInputBlur = (e) => {
+    const { name, value, min, max } = e.target;
+    const fallback = Number(min ?? 0);
+    const nextValue = value === '' ? fallback : Number(value);
+    const safeValue = Number.isFinite(nextValue)
+      ? Math.min(Number(max ?? nextValue), Math.max(fallback, nextValue))
+      : fallback;
+
+    setFormData((prev) => ({
+      ...prev,
+      [name]: safeValue,
+    }));
+  };
+
+  const adjustNumberField = (name, amount, min, max) => {
+    setFormData((prev) => ({
+      ...prev,
+      [name]: Math.min(max, Math.max(min, normalizeNumericValue(prev[name], min) + amount)),
     }));
   };
 
@@ -103,19 +196,19 @@ export default function Regression() {
     setLoading(true);
     setError(null);
 
-    const payload = {
-      studytime: formData.studytime,
-      attendance: formData.attendance,
-      prev_score: formData.prev_score,
-      absences: formData.absences,
-      // Fallback aliases for alternate backend naming
-      Hours_Studied: formData.studytime,
-      Attendance: formData.attendance,
-      Previous_Scores: formData.prev_score,
-      Sleep_Hours: 7,
-      Tutoring_Sessions: 1,
-      Physical_Activity: 3,
+    const safeFormData = {
+      Hours_Studied: normalizeNumericValue(formData.Hours_Studied, 0),
+      Attendance: normalizeNumericValue(formData.Attendance, 0),
+      Sleep_Hours: normalizeNumericValue(formData.Sleep_Hours, 7),
+      Previous_Scores: normalizeNumericValue(formData.Previous_Scores, 0),
+      Tutoring_Sessions: normalizeNumericValue(formData.Tutoring_Sessions, 1),
+      Physical_Activity: normalizeNumericValue(formData.Physical_Activity, 3),
+      Motivation_Level: normalizeNumericValue(formData.Motivation_Level, 1),
+      Parental_Involvement: normalizeNumericValue(formData.Parental_Involvement, 1),
+      Access_to_Resources: normalizeNumericValue(formData.Access_to_Resources, 1),
     };
+
+    const payload = safeFormData;
 
     try {
       const res = await api.post('/api/regression/predict', payload);
@@ -135,13 +228,22 @@ export default function Regression() {
   };
 
   const calculateLocalPrediction = () => {
+    const safeFormData = {
+      Hours_Studied: normalizeNumericValue(formData.Hours_Studied, 0),
+      Attendance: normalizeNumericValue(formData.Attendance, 0),
+      Previous_Scores: normalizeNumericValue(formData.Previous_Scores, 0),
+      Tutoring_Sessions: normalizeNumericValue(formData.Tutoring_Sessions, 1),
+      Physical_Activity: normalizeNumericValue(formData.Physical_Activity, 3),
+    };
+
     // Academic linear regression approximation
     const score =
       32.0 +
-      formData.studytime * 0.72 +
-      formData.attendance * 0.28 +
-      formData.prev_score * 0.26 -
-      formData.absences * 0.85;
+      safeFormData.Hours_Studied * 0.72 +
+      safeFormData.Attendance * 0.28 +
+      safeFormData.Previous_Scores * 0.26 +
+      safeFormData.Tutoring_Sessions * 0.5 +
+      safeFormData.Physical_Activity * 0.2;
     const clamped = Math.min(100, Math.max(0, Math.round(score * 10) / 10));
     setPredictedScore(clamped);
   };
@@ -159,7 +261,7 @@ export default function Regression() {
     <PageWrapper>
       <SectionTitle
         title="Multiple Linear Regression Modeling"
-        subtitle="Predict continuous final exam scores from study habits, lecture attendance, historical records, and absenteeism"
+        subtitle="Predict continuous final exam scores from study habits, attendance, sleep, tutoring, activity, and support factors"
         experimentNumber="06"
         badgeText="Supervised Regression"
       />
@@ -225,75 +327,234 @@ export default function Regression() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* Study Time */}
                     <div className="space-y-1.5">
-                      <Label htmlFor="studytime" className="flex items-center gap-1.5">
+                      <Label htmlFor="Hours_Studied" className="flex items-center gap-1.5">
                         <Clock size={14} className="text-indigo-400" />
                         Weekly Study Time (Hours)
                       </Label>
-                      <Input
-                        id="studytime"
-                        name="studytime"
-                        type="number"
-                        min="0"
-                        max="60"
-                        value={formData.studytime}
-                        onChange={handleInputChange}
-                        required
-                      />
+                      <div className="group relative">
+                        <Input
+                          id="Hours_Studied"
+                          name="Hours_Studied"
+                          type="number"
+                          min="0"
+                          max="60"
+                          value={formData.Hours_Studied}
+                          onChange={handleInputChange}
+                          onBlur={handleInputBlur}
+                          className="pr-10 text-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          required
+                        />
+                        <div className="pointer-events-none absolute inset-y-0 right-1 flex w-7 flex-col justify-center opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+                          <button
+                            type="button"
+                            onClick={() => adjustNumberField('Hours_Studied', 1, 0, 60)}
+                            className="flex h-1/2 items-center justify-center rounded-t text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300"
+                            aria-label="Increase weekly study time"
+                          >
+                            <ChevronUp size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => adjustNumberField('Hours_Studied', -1, 0, 60)}
+                            className="flex h-1/2 items-center justify-center rounded-b text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300"
+                            aria-label="Decrease weekly study time"
+                          >
+                            <ChevronDown size={14} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Attendance */}
                     <div className="space-y-1.5">
-                      <Label htmlFor="attendance" className="flex items-center gap-1.5">
+                      <Label htmlFor="Attendance" className="flex items-center gap-1.5">
                         <UserCheck size={14} className="text-emerald-400" />
                         Class Attendance Rate (%)
                       </Label>
-                      <Input
-                        id="attendance"
-                        name="attendance"
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={formData.attendance}
-                        onChange={handleInputChange}
-                        required
-                      />
+                      <div className="group relative">
+                        <Input
+                          id="Attendance"
+                          name="Attendance"
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={formData.Attendance}
+                          onChange={handleInputChange}
+                          onBlur={handleInputBlur}
+                          className="pr-10 text-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          required
+                        />
+                        <div className="pointer-events-none absolute inset-y-0 right-1 flex w-7 flex-col justify-center opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+                          <button
+                            type="button"
+                            onClick={() => adjustNumberField('Attendance', 1, 0, 100)}
+                            className="flex h-1/2 items-center justify-center rounded-t text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300"
+                            aria-label="Increase class attendance"
+                          >
+                            <ChevronUp size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => adjustNumberField('Attendance', -1, 0, 100)}
+                            className="flex h-1/2 items-center justify-center rounded-b text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300"
+                            aria-label="Decrease class attendance"
+                          >
+                            <ChevronDown size={14} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Previous Scores */}
                     <div className="space-y-1.5">
-                      <Label htmlFor="prev_score" className="flex items-center gap-1.5">
+                      <Label htmlFor="Previous_Scores" className="flex items-center gap-1.5">
                         <History size={14} className="text-sky-400" />
                         Previous Exam Score (0–100)
                       </Label>
-                      <Input
-                        id="prev_score"
-                        name="prev_score"
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={formData.prev_score}
-                        onChange={handleInputChange}
-                        required
-                      />
+                      <div className="group relative">
+                        <Input
+                          id="Previous_Scores"
+                          name="Previous_Scores"
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={formData.Previous_Scores}
+                          onChange={handleInputChange}
+                          onBlur={handleInputBlur}
+                          className="pr-10 text-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          required
+                        />
+                        <div className="pointer-events-none absolute inset-y-0 right-1 flex w-7 flex-col justify-center opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+                          <button
+                            type="button"
+                            onClick={() => adjustNumberField('Previous_Scores', 1, 0, 100)}
+                            className="flex h-1/2 items-center justify-center rounded-t text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300"
+                            aria-label="Increase previous exam score"
+                          >
+                            <ChevronUp size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => adjustNumberField('Previous_Scores', -1, 0, 100)}
+                            className="flex h-1/2 items-center justify-center rounded-b text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300"
+                            aria-label="Decrease previous exam score"
+                          >
+                            <ChevronDown size={14} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Absences */}
+                    {/* Sleep Hours */}
                     <div className="space-y-1.5">
-                      <Label htmlFor="absences" className="flex items-center gap-1.5">
-                        <UserX size={14} className="text-rose-400" />
-                        Semester Absences (Count)
+                      <Label htmlFor="Sleep_Hours" className="flex items-center gap-1.5">
+                        <Clock size={14} className="text-cyan-400" />
+                        Sleep Hours
                       </Label>
-                      <Input
-                        id="absences"
-                        name="absences"
-                        type="number"
-                        min="0"
-                        max="40"
-                        value={formData.absences}
-                        onChange={handleInputChange}
-                        required
-                      />
+                      <div className="group relative">
+                        <Input
+                          id="Sleep_Hours"
+                          name="Sleep_Hours"
+                          type="number"
+                          min="0"
+                          max="12"
+                          value={formData.Sleep_Hours}
+                          onChange={handleInputChange}
+                          onBlur={handleInputBlur}
+                          className="pr-10 text-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          required
+                        />
+                        <div className="pointer-events-none absolute inset-y-0 right-1 flex w-7 flex-col justify-center opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+                          <button type="button" onClick={() => adjustNumberField('Sleep_Hours', 1, 0, 12)} className="flex h-1/2 items-center justify-center rounded-t text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300" aria-label="Increase sleep hours">
+                            <ChevronUp size={14} />
+                          </button>
+                          <button type="button" onClick={() => adjustNumberField('Sleep_Hours', -1, 0, 12)} className="flex h-1/2 items-center justify-center rounded-b text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300" aria-label="Decrease sleep hours">
+                            <ChevronDown size={14} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Tutoring Sessions */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="Tutoring_Sessions" className="flex items-center gap-1.5">
+                        <UserCheck size={14} className="text-amber-400" />
+                        Tutoring Sessions
+                      </Label>
+                      <div className="group relative">
+                        <Input
+                          id="Tutoring_Sessions"
+                          name="Tutoring_Sessions"
+                          type="number"
+                          min="0"
+                          max="10"
+                          value={formData.Tutoring_Sessions}
+                          onChange={handleInputChange}
+                          onBlur={handleInputBlur}
+                          className="pr-10 text-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          required
+                        />
+                        <div className="pointer-events-none absolute inset-y-0 right-1 flex w-7 flex-col justify-center opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+                          <button type="button" onClick={() => adjustNumberField('Tutoring_Sessions', 1, 0, 10)} className="flex h-1/2 items-center justify-center rounded-t text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300" aria-label="Increase tutoring sessions">
+                            <ChevronUp size={14} />
+                          </button>
+                          <button type="button" onClick={() => adjustNumberField('Tutoring_Sessions', -1, 0, 10)} className="flex h-1/2 items-center justify-center rounded-b text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300" aria-label="Decrease tutoring sessions">
+                            <ChevronDown size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Physical Activity */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="Physical_Activity" className="flex items-center gap-1.5">
+                        <TrendingUp size={14} className="text-emerald-400" />
+                        Physical Activity
+                      </Label>
+                      <div className="group relative">
+                        <Input
+                          id="Physical_Activity"
+                          name="Physical_Activity"
+                          type="number"
+                          min="0"
+                          max="10"
+                          value={formData.Physical_Activity}
+                          onChange={handleInputChange}
+                          onBlur={handleInputBlur}
+                          className="pr-10 text-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          required
+                        />
+                        <div className="pointer-events-none absolute inset-y-0 right-1 flex w-7 flex-col justify-center opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+                          <button type="button" onClick={() => adjustNumberField('Physical_Activity', 1, 0, 10)} className="flex h-1/2 items-center justify-center rounded-t text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300" aria-label="Increase physical activity">
+                            <ChevronUp size={14} />
+                          </button>
+                          <button type="button" onClick={() => adjustNumberField('Physical_Activity', -1, 0, 10)} className="flex h-1/2 items-center justify-center rounded-b text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300" aria-label="Decrease physical activity">
+                            <ChevronDown size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {[
+                      ['Motivation_Level', 'Motivation Level'],
+                      ['Parental_Involvement', 'Parental Involvement'],
+                      ['Access_to_Resources', 'Access to Resources'],
+                    ].map(([name, label]) => (
+                      <div key={name} className="space-y-1.5">
+                        <Label htmlFor={name}>{label}</Label>
+                        <Select
+                          id={name}
+                          name={name}
+                          value={formData[name]}
+                          onChange={handleInputChange}
+                          options={[
+                            { value: 0, label: 'Low' },
+                            { value: 1, label: 'Medium' },
+                            { value: 2, label: 'High' },
+                          ]}
+                        />
+                      </div>
+                    ))}
                   </div>
 
                   <div className="pt-2">

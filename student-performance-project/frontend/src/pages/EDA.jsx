@@ -123,21 +123,35 @@ export default function EDA() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="distributions" className="gap-2">
-            <BarChart3 size={16} />
+        <TabsList
+          className="flex w-fit flex-row items-center gap-1 p-1 h-auto bg-slate-900/50 rounded-lg border border-slate-800 overflow-x-auto scrollbar-hide"
+        >
+          <TabsTrigger
+            value="distributions"
+            className="flex flex-row items-center justify-center gap-2 shrink-0 px-4 py-2 rounded-md border-0 bg-transparent"
+          >
+            <BarChart3 size={16} className="shrink-0" />
             <span>Distributions</span>
           </TabsTrigger>
-          <TabsTrigger value="relationships" className="gap-2">
-            <TrendingUp size={16} />
+          <TabsTrigger
+            value="relationships"
+            className="flex flex-row items-center justify-center gap-2 shrink-0 px-4 py-2 rounded-md border-0 bg-transparent"
+          >
+            <TrendingUp size={16} className="shrink-0" />
             <span>Relationships</span>
           </TabsTrigger>
-          <TabsTrigger value="correlations" className="gap-2">
-            <Activity size={16} />
+          <TabsTrigger
+            value="correlations"
+            className="flex flex-row items-center justify-center gap-2 shrink-0 px-4 py-2 rounded-md border-0 bg-transparent"
+          >
+            <Activity size={16} className="shrink-0" />
             <span>Correlations</span>
           </TabsTrigger>
-          <TabsTrigger value="outliers" className="gap-2">
-            <Layers size={16} />
+          <TabsTrigger
+            value="outliers"
+            className="flex flex-row items-center justify-center gap-2 shrink-0 px-4 py-2 rounded-md border-0 bg-transparent"
+          >
+            <Layers size={16} className="shrink-0" />
             <span>Outliers & Demographics</span>
           </TabsTrigger>
         </TabsList>
