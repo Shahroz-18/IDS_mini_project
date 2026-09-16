@@ -3,7 +3,7 @@
  * Uses @xyflow/react (React Flow) to visualize the curriculum milestone state-space graph.
  * Live-highlights the optimal learning path as the user changes their current level.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -18,13 +18,75 @@ import {
   Route,
   Layers,
   Zap,
+  ChevronDown,
 } from 'lucide-react';
 import PageWrapper from '@/components/layout/PageWrapper';
 import SectionTitle from '@/components/shared/SectionTitle';
 import Card, { CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import Select from '@/components/ui/select';
 import Label from '@/components/ui/label';
 import Badge from '@/components/ui/badge';
+
+/* ------------------------------------------------------------------ */
+/* Custom Select – fully themed dropdown to match the rest of the UI  */
+/* ------------------------------------------------------------------ */
+function Select({ id, name, value, onChange, options, disabled = false }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const onClick = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
+
+  const current = options.find((o) => String(o.value) === String(value));
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        id={id}
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((v) => !v)}
+        className={`flex h-10 w-full items-center justify-between rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 ${
+          disabled ? 'opacity-60 cursor-not-allowed' : ''
+        }`}
+      >
+        <span>{current?.label ?? 'Select…'}</span>
+        <ChevronDown
+          size={16}
+          className={`text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {open && !disabled && (
+        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border border-slate-700 bg-slate-950/95 backdrop-blur-sm shadow-xl shadow-black/40">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => {
+                onChange({ target: { name, value: opt.value } });
+                setOpen(false);
+              }}
+              className={`block w-full px-3 py-2 text-left text-sm transition-colors ${
+                String(opt.value) === String(value)
+                  ? 'bg-indigo-500/20 text-indigo-200'
+                  : 'text-slate-200 hover:bg-slate-800/80 hover:text-white'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {name && <input type="hidden" name={name} value={value} required />}
+    </div>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /* Backend-mirrored graph — MUST match STUDY_GRAPH in the Python file. */
@@ -53,15 +115,19 @@ const HEURISTIC = {
   Exam_Ready: 0,
 };
 
-const LEVELS = [
-  { id: 'Fundamentals',        label: 'Beginner — Fundamentals' },
-  { id: 'Basic_Concepts',      label: 'Basic Concepts' },
-  { id: 'Core_Theory',         label: 'Core Theory' },
-  { id: 'Intermediate_Theory', label: 'Intermediate Theory' },
-  { id: 'Practice_Problems',   label: 'Practice Problems' },
-  { id: 'Advanced_Problems',   label: 'Advanced Problems' },
-  { id: 'Mock_Tests',          label: 'Mock Tests' },
-  { id: 'Final_Review',        label: 'Final Review' },
+const LEVEL_OPTIONS = [
+  { value: 'Fundamentals',        label: 'Beginner — Fundamentals' },
+  { value: 'Basic_Concepts',      label: 'Basic Concepts' },
+  { value: 'Core_Theory',         label: 'Core Theory' },
+  { value: 'Intermediate_Theory', label: 'Intermediate Theory' },
+  { value: 'Practice_Problems',   label: 'Practice Problems' },
+  { value: 'Advanced_Problems',   label: 'Advanced Problems' },
+  { value: 'Mock_Tests',          label: 'Mock Tests' },
+  { value: 'Final_Review',        label: 'Final Review' },
+];
+
+const GOAL_OPTIONS = [
+  { value: 'Exam_Ready', label: 'Exam Ready (Target Benchmark)' },
 ];
 
 const GOAL_NODE = 'Exam_Ready';
@@ -419,22 +485,23 @@ export default function StudyPath() {
                   <Label htmlFor="current-level">Current Academic Level</Label>
                   <Select
                     id="current-level"
+                    name="current-level"
                     value={currentLevel}
                     onChange={(e) => setCurrentLevel(e.target.value)}
-                  >
-                    {LEVELS.map((lvl) => (
-                      <option key={lvl.id} value={lvl.id}>
-                        {lvl.label}
-                      </option>
-                    ))}
-                  </Select>
+                    options={LEVEL_OPTIONS}
+                  />
                 </div>
 
                 <div className="space-y-1.5">
                   <Label htmlFor="target-level">Target Academic Level</Label>
-                  <Select id="target-level" value={GOAL_NODE} disabled>
-                    <option value={GOAL_NODE}>Exam Ready (Target Benchmark)</option>
-                  </Select>
+                  <Select
+                    id="target-level"
+                    name="target-level"
+                    value={GOAL_NODE}
+                    onChange={() => {}}
+                    options={GOAL_OPTIONS}
+                    disabled
+                  />
                 </div>
               </div>
             </CardContent>

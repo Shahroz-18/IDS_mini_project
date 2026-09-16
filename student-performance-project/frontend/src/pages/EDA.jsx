@@ -124,8 +124,8 @@ export default function EDA() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList
-          className="flex w-fit flex-row items-center gap-1 p-1 h-auto bg-slate-900/50 rounded-lg border border-slate-800 overflow-x-auto scrollbar-hide"
-        >
+  className="flex w-fit flex-row items-center gap-1 p-1 pr-1.5 h-auto bg-slate-900/50 rounded-lg border border-slate-800 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+>
           <TabsTrigger
             value="distributions"
             className="flex flex-row items-center justify-center gap-2 shrink-0 px-4 py-2 rounded-md border-0 bg-transparent"
