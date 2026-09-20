@@ -48,6 +48,36 @@ def dataset_info():
     info['sample'] = df.head(10).to_dict(orient='records')
     return jsonify(info)
 
+@app.route('/api/dataset/pass-fail-stats', methods=['GET'])
+def pass_fail_stats():
+    """Return Pass/Fail distribution and Exam Score distribution."""
+    import pandas as pd
+    path = os.path.join(BASE_DIR, 'outputs', 'results', 'cleaned_data.csv')
+    df = pd.read_csv(path)
+    
+    counts = df['Pass_Fail'].value_counts().to_dict()
+    total = len(df)
+    
+    pass_count = int(counts.get(1, 0))
+    fail_count = int(counts.get(0, 0))
+    
+    # --- NEW: Calculate Exam Score Distribution Buckets ---
+    bins = [0, 50, 60, 70, 80, 90, 101]
+    labels = ['0-49', '50-59', '60-69', '70-79', '80-89', '90-100']
+    df['Score_Bucket'] = pd.cut(df['Exam_Score'], bins=bins, labels=labels, right=False)
+    score_dist = df['Score_Bucket'].value_counts().reindex(labels).fillna(0).to_dict()
+    
+    return jsonify({
+        'pass': pass_count,
+        'fail': fail_count,
+        'total': total,
+        'pass_percentage': round((pass_count / total) * 100, 1),
+        'fail_percentage': round((fail_count / total) * 100, 1),
+        'avg_exam_score': round(float(df['Exam_Score'].mean()), 2),
+        'avg_hours_studied': round(float(df['Hours_Studied'].mean()), 2),
+        'score_distribution': {k: int(v) for k, v in score_dist.items()} # NEW
+    })
+
 @app.route('/api/dataset/summary', methods=['GET'])
 def dataset_summary():
     df = load_data()
@@ -189,6 +219,36 @@ def astar_path():
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/dataset/pass-fail-stats', methods=['GET'])
+def pass_fail_stats():
+    """Return Pass/Fail distribution and Exam Score distribution."""
+    import pandas as pd
+    path = os.path.join(BASE_DIR, 'outputs', 'results', 'cleaned_data.csv')
+    df = pd.read_csv(path)
+    
+    counts = df['Pass_Fail'].value_counts().to_dict()
+    total = len(df)
+    
+    pass_count = int(counts.get(1, 0))
+    fail_count = int(counts.get(0, 0))
+    
+    # Exam Score Distribution Buckets
+    bins = [0, 50, 60, 70, 80, 90, 101]
+    labels = ['0-49', '50-59', '60-69', '70-79', '80-89', '90-100']
+    df['Score_Bucket'] = pd.cut(df['Exam_Score'], bins=bins, labels=labels, right=False)
+    score_dist = df['Score_Bucket'].value_counts().reindex(labels).fillna(0).to_dict()
+    
+    return jsonify({
+        'pass': pass_count,
+        'fail': fail_count,
+        'total': total,
+        'pass_percentage': round((pass_count / total) * 100, 1),
+        'fail_percentage': round((fail_count / total) * 100, 1),
+        'avg_exam_score': round(float(df['Exam_Score'].mean()), 2),
+        'avg_hours_studied': round(float(df['Hours_Studied'].mean()), 2),
+        'score_distribution': {k: int(v) for k, v in score_dist.items()}
+    })
 
 if __name__ == '__main__':
     # Pre-train models on startup (optional)

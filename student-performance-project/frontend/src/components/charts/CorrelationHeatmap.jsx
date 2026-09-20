@@ -4,9 +4,10 @@
  * using Plotly.js via react-plotly.js in dark theme.
  * Wrapped in motion.div with 0.5s fade-in.
  */
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import Plot from 'react-plotly.js';
+import Plotly from 'plotly.js-dist-min';
 
 export default function CorrelationHeatmap({
   x = [
@@ -38,6 +39,17 @@ export default function CorrelationHeatmap({
   ],
   height = 420,
 }) {
+  const plotRef = useRef(null);
+
+  // Purge Plotly instance on unmount to prevent stale DOM artifacts
+  useEffect(() => {
+    return () => {
+      if (plotRef.current) {
+        Plotly.purge(plotRef.current);
+      }
+    };
+  }, []);
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -45,7 +57,7 @@ export default function CorrelationHeatmap({
       transition={{ duration: 0.5 }}
       className="w-full flex items-center justify-center overflow-hidden"
     >
-      <div className="w-full" style={{ minHeight: height }}>
+      <div ref={plotRef} className="w-full" style={{ minHeight: height }}>
         <Plot
           data={[
             {
