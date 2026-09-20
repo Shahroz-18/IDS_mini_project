@@ -27,6 +27,33 @@ os.makedirs(RESULTS_DIR, exist_ok=True)
 # Cache trained models results
 _cache = {}
 
+CLEANED_CSV = os.path.join(RESULTS_DIR, 'cleaned_data.csv')
+
+
+def ensure_cleaned_dataset():
+    """Generate the cleaned CSV on a fresh checkout or if it was deleted."""
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    if os.path.exists(CLEANED_CSV):
+        return
+
+    print("\n" + "=" * 60)
+    print("First-time setup: cleaning dataset...")
+    print("=" * 60)
+    try:
+        from preprocessing import get_preprocessing_report
+        get_preprocessing_report()
+    except Exception as exc:
+        raise RuntimeError(f"Failed to prepare cleaned dataset: {exc}") from exc
+
+    if not os.path.exists(CLEANED_CSV):
+        raise FileNotFoundError(f"Expected cleaned dataset at {CLEANED_CSV}")
+
+    print("Setup complete. cleaned_data.csv is ready.\n")
+
+
+ensure_cleaned_dataset()
+
+
 def get_or_train_model(model_name, train_func):
     """Cache model results to avoid retraining on every request."""
     if model_name not in _cache:
@@ -219,36 +246,6 @@ def astar_path():
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-@app.route('/api/dataset/pass-fail-stats', methods=['GET'])
-def pass_fail_stats():
-    """Return Pass/Fail distribution and Exam Score distribution."""
-    import pandas as pd
-    path = os.path.join(BASE_DIR, 'outputs', 'results', 'cleaned_data.csv')
-    df = pd.read_csv(path)
-    
-    counts = df['Pass_Fail'].value_counts().to_dict()
-    total = len(df)
-    
-    pass_count = int(counts.get(1, 0))
-    fail_count = int(counts.get(0, 0))
-    
-    # Exam Score Distribution Buckets
-    bins = [0, 50, 60, 70, 80, 90, 101]
-    labels = ['0-49', '50-59', '60-69', '70-79', '80-89', '90-100']
-    df['Score_Bucket'] = pd.cut(df['Exam_Score'], bins=bins, labels=labels, right=False)
-    score_dist = df['Score_Bucket'].value_counts().reindex(labels).fillna(0).to_dict()
-    
-    return jsonify({
-        'pass': pass_count,
-        'fail': fail_count,
-        'total': total,
-        'pass_percentage': round((pass_count / total) * 100, 1),
-        'fail_percentage': round((fail_count / total) * 100, 1),
-        'avg_exam_score': round(float(df['Exam_Score'].mean()), 2),
-        'avg_hours_studied': round(float(df['Hours_Studied'].mean()), 2),
-        'score_distribution': {k: int(v) for k, v in score_dist.items()}
-    })
 
 if __name__ == '__main__':
     # Pre-train models on startup (optional)
