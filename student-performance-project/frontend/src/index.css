@@ -27,23 +27,23 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%; /* slate-950 */
-    --foreground: 210 40% 98%; /* slate-50 */
-    --card: 222.2 47.4% 11.2%; /* slate-900 */
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 47.4% 11.2%;
     --card-foreground: 210 40% 98%;
     --popover: 222.2 47.4% 11.2%;
     --popover-foreground: 210 40% 98%;
-    --primary: 238.7 83.5% 66.7%; /* indigo-500 */
+    --primary: 238.7 83.5% 66.7%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 217.2 32.6% 17.5%; /* slate-800 */
+    --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
     --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%; /* slate-400 */
+    --muted-foreground: 215 20.2% 65.1%;
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 40.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%; /* slate-800 */
+    --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 238.7 83.5% 66.7%;
     --radius: 0.75rem;
@@ -59,18 +59,58 @@
   }
 }
 
-/* Custom subtle scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* ============================================
+   Custom Scrollbar — Auto-Hide on Inactivity
+   ============================================ */
+
+/* 1. Force the scrollbar track to take up space so content doesn't jump */
+html {
+  overflow-y: scroll;
 }
-::-webkit-scrollbar-track {
-  background: hsl(var(--background));
+
+/* 2. Firefox */
+html, body {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent; /* Hidden by default */
+  transition: scrollbar-color 0.4s ease;
 }
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted));
-  border-radius: 9999px;
+
+/* Show in Firefox when JS adds the class */
+html.is-scrolling, 
+body.is-scrolling {
+  scrollbar-color: #334155 transparent;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
+
+/* 3. WebKit (Chrome, Edge, Safari) */
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Hide the thumb by default */
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb {
+  background-color: transparent; /* Invisible */
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background-color 0.4s ease;
+}
+
+/* Show the thumb ONLY when the JS adds the 'is-scrolling' class */
+html.is-scrolling::-webkit-scrollbar-thumb,
+body.is-scrolling::-webkit-scrollbar-thumb {
+  background-color: #334155; /* slate-700 */
+}
+
+/* Darken the thumb when hovering directly over it */
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover {
+  background-color: #475569; /* slate-600 */
 }

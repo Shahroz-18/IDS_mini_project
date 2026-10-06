@@ -22,7 +22,8 @@ import {
   History,
   UserX,
   ShieldCheck,
-  AlertTriangle,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import api from '@/api/axios';
 import PageWrapper from '@/components/layout/PageWrapper';
@@ -79,17 +80,40 @@ export default function Classification() {
   }, []);
 
   const fetchClassifierStats = async () => {
+    const toPct = (val, fallback) => {
+      if (val === null || val === undefined || val === '') {
+        return fallback;
+      }
+
+      const n = Number(val);
+      if (!Number.isFinite(n)) {
+        return fallback;
+      }
+
+      return `${(n <= 1 ? n * 100 : n).toFixed(1)}%`;
+    };
+
     try {
       const res = await api.get('/api/classification/train');
-      if (res.data && res.data.metrics) {
+      const m = res.data && res.data.metrics;
+      if (m) {
         setMetrics({
-          accuracy: `${(res.data.metrics.accuracy * 100).toFixed(1)}%`,
-          precision: `${(res.data.metrics.precision * 100).toFixed(1)}%`,
-          recall: `${(res.data.metrics.recall * 100).toFixed(1)}%`,
-          f1: `${(res.data.metrics.f1 * 100).toFixed(1)}%`,
+          accuracy: toPct(m.accuracy, DEFAULT_METRICS.accuracy),
+          precision: toPct(m.precision, DEFAULT_METRICS.precision),
+          recall: toPct(m.recall, DEFAULT_METRICS.recall),
+          f1: toPct(
+            m.f1 ?? m.f1_score ?? m.f1Score ?? m.F1,
+            DEFAULT_METRICS.f1,
+          ),
         });
-        if (res.data.confusion_matrix) {
-          setMatrix(res.data.confusion_matrix);
+        const confusionMatrix = res.data.confusion_matrix;
+        const isValidMatrix =
+          Array.isArray(confusionMatrix) &&
+          confusionMatrix.length === 2 &&
+          confusionMatrix.every((row) => Array.isArray(row) && row.length === 2);
+
+        if (isValidMatrix) {
+          setMatrix(confusionMatrix);
         }
       }
     } catch (_) {
@@ -97,11 +121,38 @@ export default function Classification() {
     }
   };
 
+  const normalizeNumericValue = (value, fallback = 0) => {
+    if (value === '' || value === null || value === undefined) return fallback;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: Number(value),
+      [name]: value === '' ? '' : Number(value),
+    }));
+  };
+
+  const handleInputBlur = (e) => {
+    const { name, value, min, max } = e.target;
+    const fallback = Number(min ?? 0);
+    const nextValue = value === '' ? fallback : Number(value);
+    const safeValue = Number.isFinite(nextValue)
+      ? Math.min(Number(max ?? nextValue), Math.max(fallback, nextValue))
+      : fallback;
+
+    setFormData((prev) => ({
+      ...prev,
+      [name]: safeValue,
+    }));
+  };
+
+  const adjustNumberField = (name, amount, min, max) => {
+    setFormData((prev) => ({
+      ...prev,
+      [name]: Math.min(max, Math.max(min, normalizeNumericValue(prev[name], min) + amount)),
     }));
   };
 
@@ -128,7 +179,23 @@ export default function Classification() {
           res.data.prediction === 'Pass' ||
           res.data.pass === true ||
           res.data.pass === 1;
-        const prob = res.data.probability || res.data.confidence || (isPass ? 0.91 : 0.22);
+
+        // Safely parse probability/confidence — accept numbers, strings, or "78%"
+        const rawProb =
+          res.data.probability ??
+          res.data.confidence ??
+          res.data.prob ??
+          res.data.probability_pass;
+        let prob = Number(String(rawProb).replace('%', '').trim());
+
+        if (!Number.isFinite(prob)) {
+          // Missing or unparseable — use a sensible default
+          prob = isPass ? 0.91 : 0.22;
+        } else if (prob > 1) {
+          // Value came in as percentage (e.g. 78) — convert to 0–1
+          prob = prob / 100;
+        }
+
         setPrediction({
           pass: isPass,
           confidence: (prob * 100).toFixed(1),
@@ -222,72 +289,164 @@ export default function Classification() {
               <CardContent>
                 <form onSubmit={handlePredict} className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Weekly Study Hours */}
                     <div className="space-y-1.5">
                       <Label htmlFor="c-studytime" className="flex items-center gap-1.5">
                         <Clock size={14} className="text-indigo-400" />
                         Weekly Study Hours
                       </Label>
-                      <Input
-                        id="c-studytime"
-                        name="studytime"
-                        type="number"
-                        min="0"
-                        max="60"
-                        value={formData.studytime}
-                        onChange={handleInputChange}
-                        required
-                      />
+                      <div className="group relative">
+                        <Input
+                          id="c-studytime"
+                          name="studytime"
+                          type="number"
+                          min="0"
+                          max="60"
+                          value={formData.studytime}
+                          onChange={handleInputChange}
+                          onBlur={handleInputBlur}
+                          className="pr-10 text-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          required
+                        />
+                        <div className="pointer-events-none absolute inset-y-0 right-1 flex w-7 flex-col justify-center opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+                          <button
+                            type="button"
+                            onClick={() => adjustNumberField('studytime', 1, 0, 60)}
+                            className="flex h-1/2 items-center justify-center rounded-t text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300"
+                            aria-label="Increase weekly study hours"
+                          >
+                            <ChevronUp size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => adjustNumberField('studytime', -1, 0, 60)}
+                            className="flex h-1/2 items-center justify-center rounded-b text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300"
+                            aria-label="Decrease weekly study hours"
+                          >
+                            <ChevronDown size={14} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
+                    {/* Attendance Rate */}
                     <div className="space-y-1.5">
                       <Label htmlFor="c-attendance" className="flex items-center gap-1.5">
                         <UserCheck size={14} className="text-emerald-400" />
                         Attendance Rate (%)
                       </Label>
-                      <Input
-                        id="c-attendance"
-                        name="attendance"
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={formData.attendance}
-                        onChange={handleInputChange}
-                        required
-                      />
+                      <div className="group relative">
+                        <Input
+                          id="c-attendance"
+                          name="attendance"
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={formData.attendance}
+                          onChange={handleInputChange}
+                          onBlur={handleInputBlur}
+                          className="pr-10 text-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          required
+                        />
+                        <div className="pointer-events-none absolute inset-y-0 right-1 flex w-7 flex-col justify-center opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+                          <button
+                            type="button"
+                            onClick={() => adjustNumberField('attendance', 1, 0, 100)}
+                            className="flex h-1/2 items-center justify-center rounded-t text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300"
+                            aria-label="Increase attendance rate"
+                          >
+                            <ChevronUp size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => adjustNumberField('attendance', -1, 0, 100)}
+                            className="flex h-1/2 items-center justify-center rounded-b text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300"
+                            aria-label="Decrease attendance rate"
+                          >
+                            <ChevronDown size={14} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
+                    {/* Previous Score */}
                     <div className="space-y-1.5">
                       <Label htmlFor="c-prev_score" className="flex items-center gap-1.5">
                         <History size={14} className="text-sky-400" />
                         Previous Score
                       </Label>
-                      <Input
-                        id="c-prev_score"
-                        name="prev_score"
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={formData.prev_score}
-                        onChange={handleInputChange}
-                        required
-                      />
+                      <div className="group relative">
+                        <Input
+                          id="c-prev_score"
+                          name="prev_score"
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={formData.prev_score}
+                          onChange={handleInputChange}
+                          onBlur={handleInputBlur}
+                          className="pr-10 text-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          required
+                        />
+                        <div className="pointer-events-none absolute inset-y-0 right-1 flex w-7 flex-col justify-center opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+                          <button
+                            type="button"
+                            onClick={() => adjustNumberField('prev_score', 1, 0, 100)}
+                            className="flex h-1/2 items-center justify-center rounded-t text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300"
+                            aria-label="Increase previous score"
+                          >
+                            <ChevronUp size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => adjustNumberField('prev_score', -1, 0, 100)}
+                            className="flex h-1/2 items-center justify-center rounded-b text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300"
+                            aria-label="Decrease previous score"
+                          >
+                            <ChevronDown size={14} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
+                    {/* Semester Absences */}
                     <div className="space-y-1.5">
                       <Label htmlFor="c-absences" className="flex items-center gap-1.5">
                         <UserX size={14} className="text-rose-400" />
                         Semester Absences
                       </Label>
-                      <Input
-                        id="c-absences"
-                        name="absences"
-                        type="number"
-                        min="0"
-                        max="40"
-                        value={formData.absences}
-                        onChange={handleInputChange}
-                        required
-                      />
+                      <div className="group relative">
+                        <Input
+                          id="c-absences"
+                          name="absences"
+                          type="number"
+                          min="0"
+                          max="40"
+                          value={formData.absences}
+                          onChange={handleInputChange}
+                          onBlur={handleInputBlur}
+                          className="pr-10 text-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          required
+                        />
+                        <div className="pointer-events-none absolute inset-y-0 right-1 flex w-7 flex-col justify-center opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+                          <button
+                            type="button"
+                            onClick={() => adjustNumberField('absences', 1, 0, 40)}
+                            className="flex h-1/2 items-center justify-center rounded-t text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300"
+                            aria-label="Increase semester absences"
+                          >
+                            <ChevronUp size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => adjustNumberField('absences', -1, 0, 40)}
+                            className="flex h-1/2 items-center justify-center rounded-b text-slate-400 transition-colors hover:bg-slate-800 hover:text-indigo-300"
+                            aria-label="Decrease semester absences"
+                          >
+                            <ChevronDown size={14} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
 

@@ -62,7 +62,9 @@ export function TabsTrigger({ value, className, children, disabled }) {
           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         />
       )}
-      <span className="relative z-10">{children}</span>
+      <span className="relative z-10 inline-flex items-center gap-2">
+        {children}
+      </span>
     </button>
   );
 }

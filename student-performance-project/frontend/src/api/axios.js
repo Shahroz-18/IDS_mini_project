@@ -2,10 +2,10 @@ import axios from 'axios';
 
 /**
  * Single configured Axios instance for the entire application.
- * Default baseURL is http://localhost:8000 (Flask / FastAPI backend).
+ * Default baseURL matches the Flask backend's development port.
  */
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000',
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
