@@ -8,12 +8,7 @@ import numpy as np
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 import joblib
 import os
-
-# Path configuration
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATASET_PATH = os.path.join(BASE_DIR, '..', 'dataset', 'StudentPerformanceFactors.csv')
-MODELS_DIR = os.path.join(BASE_DIR, 'models')
-os.makedirs(MODELS_DIR, exist_ok=True)
+from storage import CLEANED_CSV, DATASET_PATH, MODELS_DIR
 
 # Columns with missing values
 MISSING_COLS = ['Teacher_Quality', 'Parental_Education_Level', 'Distance_from_Home']
@@ -102,7 +97,7 @@ def clean_data(df):
     joblib.dump(scaler, os.path.join(MODELS_DIR, 'scaler.pkl'))
     
     # Save cleaned dataset
-    df_encoded.to_csv(os.path.join(BASE_DIR, 'outputs', 'results', 'cleaned_data.csv'), index=False)
+    df_encoded.to_csv(CLEANED_CSV, index=False)
     
     return df_encoded, original_shape, df.shape
 

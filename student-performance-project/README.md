@@ -98,6 +98,8 @@ setup.bat      One-time Windows dependency setup
 run.bat        Windows application launcher
 ```
 
+The source dataset is also kept in `backend/dataset/` so the Vercel backend service can bundle it within its service root. Keep both CSV copies synchronized when updating the dataset.
+
 ## Git contribution workflow
 
 `origin` is normally the name of the GitHub remote, not a branch. Use a descriptive branch name, then commit and push it:

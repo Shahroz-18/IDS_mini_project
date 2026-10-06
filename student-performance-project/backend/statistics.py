@@ -6,14 +6,11 @@ Mean, median, variance, std, covariance, correlation, t-test.
 import pandas as pd
 import numpy as np
 from scipy import stats
-import os
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+from storage import CLEANED_CSV
 
 def load_clean_data():
     """Load preprocessed data."""
-    path = os.path.join(BASE_DIR, 'outputs', 'results', 'cleaned_data.csv')
-    return pd.read_csv(path)
+    return pd.read_csv(CLEANED_CSV)
 
 def compute_descriptive_stats(df, columns=None):
     """Compute mean, median, variance, std for numerical columns."""

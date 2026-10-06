@@ -2,10 +2,16 @@
 Main Flask application integrating all experiments.
 """
 
-from flask import Flask, jsonify, request
-from flask_cors import CORS
 import os
 import json
+import sys
+
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 # Import modules
 from preprocessing import get_data_info, get_preprocessing_report, load_data, clean_data
@@ -16,19 +22,15 @@ from classification import train_classification_model, predict_pass_fail
 from clustering import train_clustering_model
 from pca import perform_pca
 from astar import astar_study_path
+from storage import CLEANED_CSV, RESULTS_DIR
 
 app = Flask(__name__)
 CORS(app)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-RESULTS_DIR = os.path.join(BASE_DIR, 'outputs', 'results')
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
 # Cache trained models results
 _cache = {}
-
-CLEANED_CSV = os.path.join(RESULTS_DIR, 'cleaned_data.csv')
-
 
 def ensure_cleaned_dataset():
     """Generate the cleaned CSV on a fresh checkout or if it was deleted."""
@@ -79,8 +81,7 @@ def dataset_info():
 def pass_fail_stats():
     """Return Pass/Fail distribution and Exam Score distribution."""
     import pandas as pd
-    path = os.path.join(BASE_DIR, 'outputs', 'results', 'cleaned_data.csv')
-    df = pd.read_csv(path)
+    df = pd.read_csv(CLEANED_CSV)
     
     counts = df['Pass_Fail'].value_counts().to_dict()
     total = len(df)

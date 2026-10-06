@@ -10,9 +10,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import joblib
 import os
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODELS_DIR = os.path.join(BASE_DIR, 'models')
+from storage import CLEANED_CSV, MODELS_DIR
 
 # Features for regression (after encoding)
 REGRESSION_FEATURES = [
@@ -34,8 +32,7 @@ CATEGORICAL_FEATURES = [
 
 
 def load_clean_data():
-    path = os.path.join(BASE_DIR, 'outputs', 'results', 'cleaned_data.csv')
-    return pd.read_csv(path)
+    return pd.read_csv(CLEANED_CSV)
 
 
 def train_regression_model():
@@ -98,7 +95,10 @@ def predict_score(features_dict):
     IMPORTANT: Applies the SAME scaler used during training so the model
     receives inputs in the same distribution it was trained on.
     """
-    model = joblib.load(os.path.join(MODELS_DIR, 'regression_model.pkl'))
+    model_path = os.path.join(MODELS_DIR, 'regression_model.pkl')
+    if not os.path.exists(model_path):
+        train_regression_model()
+    model = joblib.load(model_path)
     scaler = joblib.load(os.path.join(MODELS_DIR, 'scaler.pkl'))
 
     # Build DataFrame with all required features

@@ -9,15 +9,12 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 import joblib
 import os
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODELS_DIR = os.path.join(BASE_DIR, 'models')
+from storage import CLEANED_CSV, MODELS_DIR
 
 CLUSTER_FEATURES = ['Hours_Studied', 'Attendance', 'Previous_Scores', 'Exam_Score']
 
 def load_clean_data():
-    path = os.path.join(BASE_DIR, 'outputs', 'results', 'cleaned_data.csv')
-    return pd.read_csv(path)
+    return pd.read_csv(CLEANED_CSV)
 
 def train_clustering_model():
     """Train K-Means clustering model."""

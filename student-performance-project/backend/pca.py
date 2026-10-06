@@ -12,9 +12,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import joblib
 import os
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODELS_DIR = os.path.join(BASE_DIR, 'models')
+from storage import CLEANED_CSV
 
 PCA_FEATURES = [
     'Hours_Studied', 'Attendance', 'Sleep_Hours', 'Previous_Scores',
@@ -23,8 +21,7 @@ PCA_FEATURES = [
 ]
 
 def load_clean_data():
-    path = os.path.join(BASE_DIR, 'outputs', 'results', 'cleaned_data.csv')
-    return pd.read_csv(path)
+    return pd.read_csv(CLEANED_CSV)
 
 def perform_pca():
     """Perform PCA on scaled features."""

@@ -11,9 +11,7 @@ from sklearn.metrics import (accuracy_score, precision_score, recall_score,
                              f1_score, confusion_matrix, classification_report)
 import joblib
 import os
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODELS_DIR = os.path.join(BASE_DIR, 'models')
+from storage import CLEANED_CSV, MODELS_DIR
 
 CLASSIFICATION_FEATURES = [
     'Hours_Studied', 'Attendance', 'Sleep_Hours', 'Previous_Scores',
@@ -27,8 +25,7 @@ NUMERICAL_FEATURES = [
 ]
 
 def load_clean_data():
-    path = os.path.join(BASE_DIR, 'outputs', 'results', 'cleaned_data.csv')
-    return pd.read_csv(path)
+    return pd.read_csv(CLEANED_CSV)
 
 def train_classification_model():
     """Train Logistic Regression for Pass/Fail classification."""
@@ -78,7 +75,10 @@ def train_classification_model():
 
 def predict_pass_fail(features_dict):
     """Predict Pass/Fail for given input features."""
-    model = joblib.load(os.path.join(MODELS_DIR, 'classification_model.pkl'))
+    model_path = os.path.join(MODELS_DIR, 'classification_model.pkl')
+    if not os.path.exists(model_path):
+        train_classification_model()
+    model = joblib.load(model_path)
     scaler = joblib.load(os.path.join(MODELS_DIR, 'scaler.pkl'))
 
     input_df = pd.DataFrame([features_dict])

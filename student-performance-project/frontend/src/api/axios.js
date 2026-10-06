@@ -2,10 +2,12 @@ import axios from 'axios';
 
 /**
  * Single configured Axios instance for the entire application.
- * Default baseURL matches the Flask backend's development port.
+ * Requests use the current origin in deployment and the Vite proxy locally.
  */
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000',
+  baseURL:
+    import.meta.env.VITE_API_BASE_URL ||
+    (import.meta.env.DEV ? 'http://localhost:5000' : '/'),
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
